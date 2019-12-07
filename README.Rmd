@@ -1,0 +1,10 @@
+---
+title: "README"
+author: "Kehui-Zhang"
+date: "11/26/2019"
+output: html_document
+---
+This workout is about web scraping and regex.
+
+The purpose of this workout is to show some knowledage about web scraping.  This workout also includes how to extract crucial insights from the data using regular expression and present the insights in a creative manner.
+

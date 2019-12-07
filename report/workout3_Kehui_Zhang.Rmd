@@ -1,0 +1,547 @@
+---
+title: "workout3_Kehui_Zhang"
+author: "Kehui-Zhang"
+date: "12/5/2019"
+output: github_document
+---
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE)
+```
+
+```{r}
+library(stringr)
+library(xml2)
+library(rvest)
+library(dplyr)
+library(wordcloud)
+library(tm)
+library(dataMeta)
+library(tidyverse)
+library(ggplot2)
+```
+
+
+## Extract raw data
+
+### 1) Extract simple information of the authors
+```{r}
+
+getwd()
+setwd("/Users/zhangkehui/Desktop/UCB/Stat133/workouts/workout3/data/rawdata")
+getwd()
+
+Sys.sleep(15)
+
+abhijit_banerjee_url <- "https://raw.githubusercontent.com/ucb-stat133/stat133-fall-2019/master/data/scholar/abhijit_banerjee_GoogleScholarCitations.html"
+download.file(abhijit_banerjee_url,  'abhijit_banerjee.html')
+ab <- read_html('abhijit_banerjee.html')
+
+esther_duflo_url <-"https://raw.githubusercontent.com/ucb-stat133/stat133-fall-2019/master/data/scholar/esther_duflo_GoogleScholarCitations.html"
+download.file(esther_duflo_url,  'esther_duflo.html')
+ed <- read_html('esther_duflo.html')
+
+
+
+```
+
+#### Extract the names of the scholars from the HTML object
+```{r}
+ab_name <- ab %>%
+  html_nodes(xpath = '//*[@id = "gsc_prf_i"]') %>%
+  html_nodes(xpath = '//*[@id = "gsc_prf_in"]')%>%
+  html_text()
+ab_name
+
+ed_name <- ed %>%
+  html_nodes(xpath = '//*[@id = "gsc_prf_i"]') %>%
+  html_nodes(xpath = '//*[@id = "gsc_prf_in"]')%>%
+  html_text()
+ed_name
+
+```
+
+
+#### Extract the scholars’ affiliated institutions from the HTML object (NA if not specified)
+```{r}
+ab_insti <- ab %>%
+  html_nodes(xpath = '//*[@class = "gsc_prf_il"]') %>%
+  html_nodes(xpath = '//*[@class = "gsc_prf_ila"]')%>%
+  html_text()
+if(identical(ab_insti, character(0))){
+  ab_insti = NA
+}
+ab_insti
+  
+
+
+ed_insti <- ed %>%
+  html_nodes(xpath = '//*[@class = "gsc_prf_il"]') %>%
+  html_nodes(xpath = '//*[@class = "gsc_prf_ila"]')%>%
+  html_text()
+if(identical(ed_insti, character(0))){
+  ed_insti = NA
+}
+ed_insti
+```
+
+### 2) Extract all the papers for each author
+```{r}
+ab_papers <- ab %>%
+  html_nodes(xpath = '//*[@id="gsc_a_b"]') %>%
+  html_nodes(xpath = '//*[@class="gsc_a_tr"]') %>%
+  html_nodes(xpath = '//*[@class="gsc_a_at"]') %>%
+  html_text()
+
+```
+
+
+```{r}
+ed_papers <- ed %>%
+  #html_nodes(xpath = '//*[@id="gsc_a_t"]') %>%
+  html_nodes(xpath = '//*[@id="gsc_a_b"]') %>%
+  html_nodes(xpath = '//*[@class="gsc_a_tr"]') %>%
+  html_nodes(xpath = '//*[@class="gsc_a_at"]') %>%
+  html_text()
+```
+
+
+#### Extract information of the two scholars and save the information in data frames
+
+```{r}
+ab_info_link <- ab %>% html_nodes(xpath ='//*[@id="gsc_a_b"]') %>% 
+  html_nodes(xpath = '//*[@class="gsc_a_tr"]') %>% html_nodes(xpath ='td') 
+ab_result = sapply(html_children(ab_info_link), html_text)
+ab_result = ab_result[ab_result != '*']
+
+ab_citation_df = data.frame(paperName = ab_result[seq(1, length(ab_result), 5)],
+                         researcher = ab_result[seq(2, length(ab_result), 5)],
+                         journal = ab_result[seq(3, length(ab_result), 5)],
+                         citations = ab_result[seq(4, length(ab_result), 5)],
+                         year = ab_result[seq(5, length(ab_result), 5)])
+ab_citation_df$citations = as.integer(ab_citation_df$citations)
+
+
+ed_info_link <- ed %>% html_nodes(xpath ='//*[@id="gsc_a_b"]') %>% 
+  html_nodes(xpath = '//*[@class="gsc_a_tr"]') %>% html_nodes(xpath ='td') 
+ed_result = sapply(html_children(ed_info_link), html_text)
+ed_result = ed_result[ed_result != '*']
+
+ed_citation_df = data.frame(paperName = ed_result[seq(1, length(ed_result), 5)],
+                         researcher = ed_result[seq(2, length(ed_result), 5)],
+                         journal = ed_result[seq(3, length(ed_result), 5)],
+                         citations = ed_result[seq(4, length(ed_result), 5)],
+                         year = ed_result[seq(5, length(ed_result), 5)])
+ed_citation_df$citations = as.integer(ed_citation_df$citations)
+
+```
+
+
+#### Write the data frames into csv files and save the files in the cleandata/ folder
+```{r}
+setwd("/Users/zhangkehui/Desktop/UCB/Stat133/workouts/workout3/data/cleandata")
+getwd()
+write.csv(ab_citation_df,'ab_citation_df.csv')
+write.csv(ed_citation_df,'ed_citation_df.csv')
+```
+
+
+### 3) Practice with Regular Expressions
+
+#### a) For the two scholars, how many of their paper titles begin with a word that starts with a vowel, respectively?
+```{r}
+length(ab_papers)
+ab_1st <- substr(ab_papers, 1,1)
+vowels <- c('A', 'E', 'I', 'O', 'U')
+sum(table(ab_1st[ab_1st %in% vowels]))
+```
+
+```{r}
+length(ed_papers)
+ed_1st <- substr(ed_papers, 1,1)
+vowels <- c('A', 'E', 'I', 'O', 'U')
+sum(table(ed_1st[ed_1st %in% vowels]))
+```
+#### The number of their paper titles that begins with a word starting with a vowel almost accounts for 25% of the total number of papers.  This makes sense since the number of vowels also accounts for 25% of the total 26 letters.  And we may conclude that the starting letter has nothing to do with vowels.
+
+
+#### b) For the two scholars, how many of their paper titles end with “s” respectively?
+```{r}
+ab_last <- str_sub(ab_papers,-1,-1)
+sum(table(ab_last[ab_last %in% 's']))
+```
+
+```{r}
+ed_last <- str_sub(ed_papers,-1,-1)
+sum(table(ed_last[ed_last %in% 's']))
+```
+#### The number of their paper titles end with "s" accounts for around 15% of the total number of their paper titles, which far more than the percent for which the letter "s" accounts of the total 26 letters--3%.  I think one possible reason is that the letter "s" represents the concept of plural and usually the paper focus on a general group instead of one single thing.  
+
+#### c) For the two scholars, find the longest title, respectively (“longest” in terms of number of characters).
+```{r}
+
+ab_longest <- data_frame(text = ab_citation_df$paperName) %>% 
+  mutate(tokens = str_split(text, "\\s+")) %>%
+  unnest(cols = c(tokens)) %>% 
+  count(text) %>% 
+  arrange(desc(n)) 
+ab_longest$text[1]
+
+```
+
+```{r}
+ed_longest <- data_frame(text = ed_citation_df$paperName) %>% 
+  mutate(tokens = str_split(text, "\\s+")) %>%
+  unnest(cols = c(tokens)) %>% 
+  count(text) %>% 
+  arrange(desc(n)) 
+ed_longest$text[1]
+```
+
+
+#### d) For the two scholars, calculate the variable “number of punctuation symbols in the their titles”. Display summary() statistics of these variables, and the corresponding histograms.
+
+```{r}
+num_punc <- str_count(ab_papers,"[:punct:]")
+summary(num_punc)
+hist(num_punc)
+```
+
+#### The above histogram of number of punctuations shows that in the paper titles, punctuations are rarely used. Because te titles are usually simple and clear. 
+
+#### e) Remove stop words(“the”, “a”, “an”, “and”, “in”, “if”, “but”), numbers and punctuations from the titles.
+```{r}
+
+afterclean_ab_papers <- str_replace_all(ab_papers, "[:punct:]", "") %>%
+  str_replace_all("[:digit:]", "") 
+afterclean_ab_papers <- afterclean_ab_papers[!afterclean_ab_papers == ""]
+
+afterclean_ed_papers <- str_replace_all(ed_papers, "[:punct:]", "") %>%
+  str_replace_all("[:digit:]", "") 
+afterclean_ed_papers <- afterclean_ed_papers[!afterclean_ed_papers == ""]
+
+
+```
+
+#### We need to remove these stop words from the paper titles because these words do not have any clear or real meaning.  Then there is no need to extract these words.  Similarly, a single number or punctuations cannot give any information to us.  Therefore we need to remove them from the paper titles.
+
+
+#### f) Excluding stop words, numbers and punctuations, what are the 10 most frequent words in scholar A’s titles?
+```{r}
+library(tidyverse)
+data_frame(text = afterclean_ab_papers) %>% 
+  mutate(text = tolower(text)) %>% 
+  mutate(tokens = str_split(text, "\\s+")) %>%
+  unnest(cols = c(tokens)) %>% 
+  count(tokens) %>% 
+  filter(!tokens %in% stopwords()) %>% 
+  filter(!tokens %in% "") %>%
+  mutate(freq = n / sum(n)) %>% 
+  arrange(desc(n)) %>%
+  head(10)
+
+```
+
+#### g) Excluding stop words, numbers and punctuations, what are the 10 most frequent words in scholar B’s titles?
+
+```{r}
+data_frame(text = afterclean_ed_papers) %>% 
+  mutate(text = tolower(text)) %>% 
+  mutate(tokens = str_split(text, "\\s+")) %>%
+  unnest(cols = c(tokens)) %>% 
+  count(tokens) %>% 
+  filter(!tokens %in% stopwords()) %>% 
+  filter(!tokens %in% "") %>%
+  mutate(freq = n / sum(n)) %>% 
+  arrange(desc(n)) %>%
+  head(10)
+```
+
+#### From above tables, we can know that the frequencies of "evidence" and "india" are the highest and "economic" and "economic" appears a lot in their paper titles.  This means that these two professors might be interested in the same topic which may be the economics of india.  And they would like to provide some evidence to prove their conclusions.
+
+### 4)Data Visualizations
+#### Excluding stop words, numbers and punctuations, create two wordclouds for all the titles of scholar A and B respectively. What’s your observation from the wordcloud plots?
+
+```{r}
+setwd("/Users/zhangkehui/Desktop/UCB/Stat133/workouts/workout3/images")
+png('abhijit_banerjee_image.png')
+ab_papers_map <- Corpus(VectorSource(ab_papers))
+ab_papers_map <- tm_map(ab_papers_map, removeNumbers)
+ab_papers_map <- tm_map(ab_papers_map, removePunctuation)
+ab_papers_map <- tm_map(ab_papers_map, content_transformer(tolower))
+ab_papers_map <- tm_map(ab_papers_map,function(x)removeWords(tolower(x),stopwords()))
+wordcloud(ab_papers_map,scale=c(8,.3), colors=brewer.pal(6,"Dark2"),random.order=FALSE)
+dev.off()
+knitr::include_graphics('/Users/zhangkehui/Desktop/UCB/Stat133/workouts/workout3/images/abhijit_banerjee_image.png')
+
+
+png('esther_duflo_image.png')
+ed_papers_map <- Corpus(VectorSource(ed_papers))
+ed_papers_map <- tm_map(ed_papers_map, removeNumbers)
+ed_papers_map <- tm_map(ed_papers_map, removePunctuation)
+ed_papers_map <- tm_map(ed_papers_map, content_transformer(tolower))
+ed_papers_map <- tm_map(ed_papers_map,function(x)removeWords(tolower(x),stopwords()))
+wordcloud(ed_papers_map,scale=c(8,.3), colors=brewer.pal(6,"Dark2"),random.order=FALSE)
+dev.off()
+knitr::include_graphics('/Users/zhangkehui/Desktop/UCB/Stat133/workouts/workout3/images/esther_duflo_image.png')
+
+```
+
+#### Create a line plot that displays the number of the publications for the two scholars across years. What can you observe from the plot?
+```{r}
+setwd("/Users/zhangkehui/Desktop/UCB/Stat133/workouts/workout3/images")
+png('ab_ed_citations.png')
+plot(ab_citation_df$citations,type = 'l', col = "red",ylab = "publications", 
+   main = "publications across years")
+lines(ed_citation_df$citations, col = "blue")
+dev.off()
+
+knitr::include_graphics('/Users/zhangkehui/Desktop/UCB/Stat133/workouts/workout3/images/ab_ed_citations.png')
+
+```
+
+#### We can see that the trends of the amount of publications for both scholars across years are almost the same. This probably means that they have a close cooperation in researching.  
+
+
+#### For each author, select 3 of the top 10 most frequently used words in his/her titles. With this set of five words, create a plot with timelines that show the trend (i.e. evolution) of each word over a period of 10 to 20 years (the more years the better, so that you can see how a specific word has become more or less popular over time).
+
+```{r}
+## three words "evidence", "india" and "development" are chosen.
+
+characters <- c("evidence", "india" , "development")
+#table(ab_citation_df$year)
+name <- names(table(ab_citation_df$year))[-1]
+
+#ab_citation_df$paperName[ab_citation_df$year == 1987]
+is.integer0 <- function(x)
+{
+  is.integer(x) && length(x) == 0L
+}
+
+df <- data_frame(year = name)
+df$year <-  as.double(df$year)  
+ab_word_fre <- list()
+
+for (j in c(1:length(characters))){
+  counts <- c()
+  
+  for (i in c(1:length(name)) ){
+    ab_counts <- data_frame(text = ab_citation_df$paperName[ab_citation_df$year == name[i]]) %>% 
+    mutate(text = tolower(text)) %>% 
+    mutate(tokens = str_split(text, "\\s+")) %>%
+    unnest(cols = c(tokens)) %>% 
+    filter(tokens == characters[j]) %>%
+    count(tokens)
+  
+    if(is.integer0(ab_counts$n))
+      counts <- c(counts, 0)
+    else
+      counts <- c(counts, ab_counts$n)
+  }
+  ab_word_fre[[j]]<- counts
+  }
+
+#counts <- counts[-1]
+df <- mutate(df,evidence = ab_word_fre[[1]], india = ab_word_fre[[2]], development = ab_word_fre[[3]])
+
+
+df <- df %>%
+  select(year, evidence, india, development) %>%
+  gather(key = "variable", value = "value", -year)
+
+ggplot(df, aes(x = year, y = value)) + 
+  geom_line(aes(color = variable, linetype = variable)) + 
+  scale_color_manual(values = c("red", "blue", "black"))
+
+```
+
+
+
+```{r}
+## three words "evidence", "india" and "development" are chosen.
+
+characters <- c("evidence", "india" , "development")
+#table(ab_citation_df$year)
+name <- names(table(ed_citation_df$year))[-1]
+
+is.integer0 <- function(x)
+{
+  is.integer(x) && length(x) == 0L
+}
+
+df <- data_frame(year = name)
+df$year <-  as.double(df$year)  
+ed_word_fre <- list()
+
+for (j in c(1:length(characters))){
+  counts <- c()
+  
+  for (i in c(1:length(name)) ){
+    ed_counts <- data_frame(text = ed_citation_df$paperName[ed_citation_df$year == name[i]]) %>% 
+    mutate(text = tolower(text)) %>% 
+    mutate(tokens = str_split(text, "\\s+")) %>%
+    unnest(cols = c(tokens)) %>% 
+    filter(tokens == characters[j]) %>%
+    count(tokens)
+  
+    if(is.integer0(ed_counts$n))
+      counts <- c(counts, 0)
+    else
+      counts <- c(counts, ed_counts$n)
+  }
+  ed_word_fre[[j]]<- counts
+  }
+
+#counts <- counts[-1]
+df <- mutate(df,evidence = ed_word_fre[[1]], india = ed_word_fre[[2]], development = ed_word_fre[[3]])
+
+
+df <- df %>%
+  select(year, evidence, india, development) %>%
+  gather(key = "variable", value = "value", -year)
+
+ggplot(df, aes(x = year, y = value)) + 
+  geom_line(aes(color = variable, linetype = variable)) + 
+  scale_color_manual(values = c("red", "blue", "black"))
+
+```
+
+#### According to the  trend (i.e. evolution) of each word which is within the most frequently 10 words in the paper titles over a period of 10 to 20 years, we can see that they appear in the paper titles more frequently in recent years which probably shows that the reseachers are interested in them in recent years. 
+
+### 5) Report
+#### 1) On average, which scholar has more co-authors?
+```{r}
+ab_co_author <- str_split(ab_citation_df$researcher,", ", n= Inf) %>%
+  unlist() %>%
+  str_split( " ", n = 2) %>%
+  lapply("[", 2) %>%
+  tolower() %>%
+  unlist()  %>% 
+  unique()
+ab_co_author <- ab_co_author[!is.na(ab_co_author)]
+ab_co_author <- str_replace_all(ab_co_author, "banerjee","")
+ab_co_author <- ab_co_author[!ab_co_author == ""]
+length(ab_co_author)
+
+
+ed_co_author <- str_split(ed_citation_df$researcher,", ", n= Inf) %>%
+  unlist() %>%
+  str_split( " ", n = 2) %>%
+  lapply("[", 2) %>%
+  tolower() %>%
+  unlist()  %>% 
+  unique()
+ed_co_author <- ed_co_author[!is.na(ed_co_author)]
+ed_co_author <- str_replace_all(ed_co_author, "duflo","")
+ed_co_author <- ed_co_author[!ed_co_author == ""]
+length(ed_co_author)
+
+```
+#### We know that the first scholar has 482 co-authors and the second one has 411 co-authors.  Therefore the number of  co-authors of the second scholar is more than the first one's.  
+
+
+
+#### 2) Do the two scholars have mutual friends(co-authors)? If yes, print the names of their friends
+```{r}
+intersect(ab_co_author, ed_co_author)
+```
+#### They have many mutual friends(co-authors).  This might because these scholars are interested in the same field and they would like to work together.  
+
+#### 3) Did the two scholars once publish a paper together? If yes, please print the related information of that paper.
+
+```{r}
+b <- c("banerjee")
+d <- c("duflo")  
+ df <- mutate(ab_citation_df, coauthor = tolower(ab_citation_df$researcher)) %>% 
+  unnest(cols = c(coauthor)) 
+ 
+co_paper <- data_frame(paper = df$paperName[grepl(b,df$coauthor) & grepl(d,df$coauthor)], author = df$coauthor[grepl(b,df$coauthor) & grepl(d,df$coauthor)])
+co_paper
+
+```
+#### Now we know that they published papers together.  And the number of the papers published by both of them are not small.  
+
+
+#### 4) What’s the paper with the most co-authors?
+```{r}
+  mutate(ab_citation_df, tokens = str_split(tolower(ab_citation_df$researcher), ", ")) %>%
+  unnest(cols = c(tokens)) %>% 
+  count(paperName) %>%
+  mutate(freq = n / sum(n)) %>% 
+  arrange(desc(n)) %>%
+  head(1)
+```
+#### According to the result we know that there are a total of 20 co-authors who paticipated in wrting this paper and researching.  
+
+#### 5) Use regular expression to count the number of pages for each article (exclude books).
+```{r}
+ab_df <- mutate(ab_citation_df, tokens = str_split(tolower(ab_citation_df$journal), ", ")) %>%
+  unnest(cols = c(tokens))
+ab_page <-ab_df$tokens[!grepl("[:digit:]", ab_df$tokens)] 
+ab_page <- ab_page[grepl("-", ab_page)]
+
+ab_num_page2 <- str_split(ab_page, "-") %>%
+   lapply("[", 2) %>%
+  as.numeric()
+
+ab_num_page1 <- str_split(ab_page, "-") %>%
+   lapply("[", 1) %>%
+  as.numeric()
+
+ab_num_page <- abs(ab_num_page2 - ab_num_page1)
+ab_num_page <- ab_num_page[!is.na(ab_num_page)]
+
+ab_num_page   
+```
+
+
+```{r}
+ed_df <- mutate(ed_citation_df, tokens = str_split(tolower(ed_citation_df$journal), ", ")) %>%
+  unnest(cols = c(tokens))
+ed_page <-ed_df$tokens[!grepl("[:digit:]", ed_df$tokens)] 
+ed_page <- ed_page[grepl("-", ed_page)]
+
+ed_num_page2 <- str_split(ed_page, "-") %>%
+   lapply("[", 2) %>%
+  as.numeric()
+
+ed_num_page1 <- str_split(ed_page, "-") %>%
+   lapply("[", 1) %>%
+  as.numeric()
+
+ed_num_page <- abs(ed_num_page2 - ed_num_page1)
+ed_num_page <- ed_num_page[!is.na(ed_num_page)]
+
+ed_num_page
+```
+
+
+
+#### 7) How many distinct journals are there in the two citation tables?
+```{r}
+str_split(ab_citation_df$journal, ", ") %>%
+  lapply("[", 1) %>%
+  str_replace_all("[:digit:]", "") %>%
+  str_replace_all("[:punct:]", "") %>%
+  unique() %>%
+  length()
+
+str_split(ed_citation_df$journal, ", ") %>%
+  lapply("[", 1) %>%
+  str_replace_all("[:digit:]", "") %>%
+  str_replace_all("[:punct:]", "") %>%
+  unique() %>%
+  length()
+```
+
+#### There are 264 distinct journals in the scholar A's citation table while 250 distinct journals in the scholar B's citation table.  
+
+
+
+
+
+
+
+
+
